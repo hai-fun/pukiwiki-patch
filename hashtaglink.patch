@@ -1,11 +1,11 @@
 diff -u -r origin/lib/html.php after/lib/html.php
 --- origin/lib/html.php	Tue May 10 21:55:39 2022
-+++ after/lib/html.php	Thu May 12 16:20:24 2022
++++ after/lib/html.php	Thu May 12 22:40:45 2022
 @@ -227,6 +227,7 @@
  	global $external_link_cushion_page, $external_link_cushion;
  	global $topicpath_title;
  	global $ticket_jira_default_site;
-+	global $hashtaglink;
++	global $hashtaglink, $hashtaglink_javascript;
  	global $show_passage;
  	if (!isset($ticket_link_sites) || !is_array($ticket_link_sites)) {
  		return '';
@@ -14,7 +14,7 @@ diff -u -r origin/lib/html.php after/lib/html.php
  EOS;
  	}
 +	// HashTagLink
-+	$hashtaglink_value = ($plugin == "read") ? $hashtaglink : 0;
++	$hashtaglink_value = ($plugin == "read" && $hashtaglink_javascript) ? $hashtaglink : 0;
 +	$hashtaglink_data = <<<EOS
 +<input type="hidden" class="hashtag-link" value="$hashtaglink_value" />
 +EOS;
@@ -29,16 +29,90 @@ diff -u -r origin/lib/html.php after/lib/html.php
  $external_link_cushion_data
  $topicpath_data
  </div>
+diff -u -r origin/lib/init.php after/lib/init.php
+--- origin/lib/init.php	Tue May 10 21:55:39 2022
++++ after/lib/init.php	Thu May 12 22:49:26 2022
+@@ -442,6 +442,9 @@
+ // BugTrack/304暫定対処
+ $WikiName = '(?:[A-Z][a-z]+){2,}(?!\w)';
+ 
++// HashTagLink
++$HashTagLinkPattern = '(?!\A)(?:\#(([A-Z][a-z]+){' . $hashtaglink . ',}))';
++
+ // $BracketName = ':?[^\s\]#&<>":]+:?';
+ $BracketName = '(?!\s):?[^\r\n\t\f\[\]<>#&":]+:?(?<!\s)';
+ 
+diff -u -r origin/lib/make_link.php after/lib/make_link.php
+--- origin/lib/make_link.php	Tue May 10 21:55:39 2022
++++ after/lib/make_link.php	Thu May 12 22:52:30 2022
+@@ -89,6 +89,7 @@
+ 				'wikiname',      // WikiNames
+ 				'autoalias_a',   // AutoAlias(alphabet)
+ 				'autolink_a',    // AutoLinks(alphabet)
++				'hashtaglink',
+ 			);
+ 		}
+ 
+@@ -843,6 +844,46 @@
+ 	}
+ }
+ 
++// HashTagLinks
++class Link_hashtaglink extends Link
++{
++	function Link_hashtaglink($start)
++	{
++		$this->__construct($start);
++	}
++	function __construct($start)
++	{
++		parent::__construct($start);
++	}
++
++	function get_pattern()
++	{
++		global $HashTagLinkPattern, $hashtaglink, $hashtaglink_javascript;
++		return $hashtaglink && !$hashtaglink_javascript ? $HashTagLinkPattern : FALSE;
++	}
++
++	function get_count()
++	{
++		return 1;
++	}
++
++	function set($arr, $page)
++	{
++		list($name) = $this->splice($arr);
++		return parent::setParam($page, $name, '', 'pagename', $name);
++	}
++
++	function toString()
++	{
++		return make_pagelink(
++			substr($this->name, 1),
++			$this->alias,
++			'',
++			$this->page
++		);
++	}
++}
++
+ // Make hyperlink for the page
+ function make_pagelink($page, $alias = '', $anchor = '', $refer = '', $isautolink = FALSE)
+ {
 diff -u -r origin/pukiwiki.ini.php after/pukiwiki.ini.php
 --- origin/pukiwiki.ini.php	Tue May 10 21:55:39 2022
-+++ after/pukiwiki.ini.php	Thu May 12 16:47:10 2022
-@@ -177,6 +177,11 @@
++++ after/pukiwiki.ini.php	Thu May 12 22:53:55 2022
+@@ -177,6 +177,14 @@
  $autoalias_max_words = 50; // pairs
  
  /////////////////////////////////////////////////
 +// HashTagLink feature
 +// Link to hash tag
 +$hashtaglink = 2; // WikiName words, 0 = OFF (try 2)
++
++// HashTag links in javascript
++$hashtaglink_javascript = 0; // 1 = ON, 0 = OFF
 +
 +/////////////////////////////////////////////////
  // Enable Freeze / Unfreeze feature
